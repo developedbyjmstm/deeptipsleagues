@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>League Parser</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0A2625 0%, #103F3E 100%);
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #9A7701;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #B5C3C3;
+            margin-bottom: 20px;
+        }
+        
+        .output-section {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            color: #9A7701;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #9A7701;
+        }
+        
+        .results {
+            background: rgba(10, 38, 37, 0.7);
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .league-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #9A7701;
+        }
+        
+        .league-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        
+        .league-name {
+            font-weight: bold;
+            color: #B5C3C3;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .country-flag {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        
+        .json-output {
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .no-results {
+            text-align: center;
+            color: #B5C3C3;
+            font-style: italic;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #B5C3C3;
+            font-style: italic;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="output-section">
+            <h2>LEAGUE PARSER</h2>
+            <div class="results" id="results">
+                <p class="loading">No leagues parsed yet. Run the JavaScript interface code.</p>
+            </div>
+            <div class="json-output" id="jsonOutput">{}</div>
+        </div>
+    </div>
+
+    <script>
+        // Variable that will contain the HTML to parse
+        var htmlContentVariable = '';
+        
+        // Function to set HTML content from Android
+        function setHtmlContent(html) {
+            htmlContentVariable = html;
+            // Automatically parse the HTML when it's set
+            parseAndDisplayResults();
+        }
+        
+        // Function to parse HTML and display results
+        function parseAndDisplayResults() {
+            if (!htmlContentVariable) {
+                document.getElementById('results').innerHTML = '<p class="no-results">No HTML content provided</p>';
+                return;
+            }
+            
+            const results = parseMatches(htmlContentVariable);
+            displayResults(results);
+        }
+        
+        // Function to parse leagues from HTML
+        function parseMatches(html) {
+            if (!html) return [];
+
+            try {
+                let leagues = [];
+                
+                // Create a temporary DOM parser to work with the HTML
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Find league elements using the selector from Java code
+                let leagueElements = doc.querySelectorAll('.block-impala > a.football-table__row_related');
+                
+                for (let i = 0; i < leagueElements.length; i++) {
+                    let leagueElement = leagueElements[i];
+                    let link = leagueElement.href;
+                    
+                    let flagElement = leagueElement.querySelector('.fflag');
+                    let countryFlagUrl = '';
+                    if (flagElement) {
+                        let classList = flagElement.className.split(' ');
+                        for (let j = 0; j < classList.length; j++) {
+                            if (classList[j].startsWith('fflag-')) {
+                                countryFlagUrl = 'https://www.prediction.football/images/flags/' + 
+                                               classList[j].substring(6) + '.png';
+                                break;
+                            }
+                        }
+                    }
+                    
+                    let titleElement = leagueElement.querySelector('.football-table__title-link');
+                    let leagueName = titleElement ? titleElement.textContent.trim() : '';
+                    
+                    leagues.push({
+                        leagueName: leagueName,
+                        countryFlagUrl: countryFlagUrl,
+                        link: link
+                    });
+                }
+                
+                return leagues;
+                
+            } catch (e) {
+                console.error(e);
+                return [];
+            }
+        }
+        
+        // Function to display league results
+        function displayResults(leagues) {
+            const resultsContainer = document.getElementById('results');
+            const jsonOutput = document.getElementById('jsonOutput');
+            
+            if (!leagues || leagues.length === 0) {
+                resultsContainer.innerHTML = '<p class="no-results">No leagues found or parsing error occurred</p>';
+                jsonOutput.textContent = '[]';
+                return;
+            }
+            
+            // Display formatted results
+            resultsContainer.innerHTML = '';
+            leagues.forEach(league => {
+                const leagueEl = document.createElement('div');
+                leagueEl.className = 'league-item';
+                
+                leagueEl.innerHTML = `
+                    <div class="league-header">
+                        <span class="league-name">
+                            ${league.countryFlagUrl ? `<img class="country-flag" src="${league.countryFlagUrl}" alt="Country flag">` : ''}
+                            ${league.leagueName}
+                        </span>
+                    </div>
+                    <div style="margin-top: 10px; word-break: break-all;">
+                        <a href="${league.link}" target="_blank" style="color: #9A7701; text-decoration: none;">
+                            ${league.link}
+                        </a>
+                    </div>
+                `;
+                
+                resultsContainer.appendChild(leagueEl);
+            });
+            
+            // Display JSON output
+            jsonOutput.textContent = JSON.stringify(leagues, null, 2);
+            
+            // If AndroidBridge exists (in WebView), call it
+            if (typeof AndroidBridge !== 'undefined' && AndroidBridge.processLeagues) {
+                AndroidBridge.processLeagues(JSON.stringify(leagues));
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-run if we have HTML content already set
+            if (htmlContentVariable) {
+                parseAndDisplayResults();
+            }
+            
+            // For testing purposes, add a button to test with sample HTML
+            const buttonContainer = document.createElement('div');
+            buttonContainer.style.marginTop = '20px';
+            buttonContainer.style.textAlign = 'center';
+            
+            const testBtn = document.createElement('button');
+            testBtn.textContent = 'Test with Sample HTML';
+            testBtn.style.padding = '10px 20px';
+            testBtn.style.backgroundColor = '#9A7701';
+            testBtn.style.color = 'white';
+            testBtn.style.border = 'none';
+            testBtn.style.borderRadius = '5px';
+            testBtn.style.cursor = 'pointer';
+            testBtn.style.fontSize = '16px';
+            
+            testBtn.onclick = function() {
+                // Sample HTML with league structure
+                const sampleHtml = `
+                    <div class="block-impala">
+                        <a href="https://example.com/league1" class="football-table__row_related">
+                            <span class="fflag fflag-EN"></span>
+                            <span class="football-table__title-link">Premier League</span>
+                        </a>
+                        <a href="https://example.com/league2" class="football-table__row_related">
+                            <span class="fflag fflag-ES"></span>
+                            <span class="football-table__title-link">La Liga</span>
+                        </a>
+                        <a href="https://example.com/league3" class="football-table__row_related">
+                            <span class="fflag fflag-IT"></span>
+                            <span class="football-table__title-link">Serie A</span>
+                        </a>
+                    </div>
+                `;
+                setHtmlContent(sampleHtml);
+            };
+            
+            buttonContainer.appendChild(testBtn);
+            
+            // Insert before the output section
+            const outputSection = document.querySelector('.output-section');
+            outputSection.insertBefore(buttonContainer, outputSection.firstChild);
+        });
+
+    </script>
+</body>
+</html>
